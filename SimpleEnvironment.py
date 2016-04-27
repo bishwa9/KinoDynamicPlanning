@@ -31,6 +31,8 @@ class SimpleEnvironment(object):
 
         self.ConstructActions()
 
+        self.table = self.robot.GetEnv().GetKinBody('conference_table')
+
     def GenerateFootprintFromControl(self, start_config, control, stepsize=0.01):
 
         # Extract the elements of the control
