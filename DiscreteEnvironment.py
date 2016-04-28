@@ -19,7 +19,7 @@ class DiscreteEnvironment(object):
         # Figure out the number of grid cells that are in each dimension
         self.num_cells = self.dimension*[0]
         for idx in range(self.dimension):
-            self.num_cells[idx] = numpy.ceil((upper_limits[idx] - lower_limits[idx])/resolution[idx])
+            self.num_cells[idx] = numpy.ceil((upper_limits[idx] - self.lower_limits[idx])/resolution[idx])
 
     def ConfigurationToNodeId(self, config):
 

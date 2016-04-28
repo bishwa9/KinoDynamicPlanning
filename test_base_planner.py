@@ -42,7 +42,7 @@ if __name__ == "__main__":
     herb_base = SimpleRobot(env, robot)
     base_env = SimpleEnvironment(herb_base, resolution)
 
-    raw_input('Move robot to start config and press enter')
+    # raw_input('Move robot to start config and press enter')
     sid = base_env.discrete_env.ConfigurationToNodeId(herb_base.GetCurrentConfiguration())
     start_config = base_env.discrete_env.NodeIdToConfiguration(sid)
     herb_base.SetCurrentConfiguration(start_config)
@@ -52,9 +52,10 @@ if __name__ == "__main__":
     hstart.SetShow(True)
     
 
-    raw_input('Move robot to goal config and press enter')
+    # raw_input('Move robot to goal config and press enter')
     gid = base_env.discrete_env.ConfigurationToNodeId(herb_base.GetCurrentConfiguration())
-    goal_config = base_env.discrete_env.NodeIdToConfiguration(gid)
+    goal_config = numpy.array([-0.1,-0.1,0])
+    # goal_config = base_env.discrete_env.NodeIdToConfiguration(gid)
     herb_base.SetCurrentConfiguration(goal_config)
 
     tgoal = robot.GetTransform()

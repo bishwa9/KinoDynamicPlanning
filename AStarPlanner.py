@@ -1,59 +1,62 @@
-import heapq
 import numpy
 import time
 
+
 class list_object(object):
-    def __init__(self, action, parent):
+    def __init__(self, parent, action):
         self.ActionToGetHere = action
         self.parent = parent
 
 class AStarPlanner(object):
-    
     def __init__(self, planning_env, visualize):
         self.planning_env = planning_env
         self.visualize = visualize
         self.nodes = dict()
 
     def Plan(self, start_config, goal_config):
-
+        # initializations
         plan = []
-        # TODO: Here you will implement the AStar planner
-        #  The return path should be a numpy array
-        #  of dimension k x n where k is the number of waypoints
-        #  and n is the dimension of the robots configuration space
-        # print start_config
-        if self.visualize and hasattr(self.planning_env, 'InitializePlot'):
+        start_node_id = self.planning_env.discrete_env.ConfigurationToNodeId(start_config)
+        print start_config
+        print goal_config
+        goal_node_id = self.planning_env.discrete_env.ConfigurationToNodeId(goal_config)
+        open_list = [start_node_id]  # nodes not searched
+        closed_list = []  # nodes searched
+        parent_map = dict()  # map connecting parents and successors
+        g_map = {start_node_id: 0}  # map connecting selected nodes to their distances from start
+        h_cost = self.planning_env.ComputeHeuristicCost(start_node_id, goal_node_id)  # heuristic cost
+        f_map = {start_node_id: h_cost}  # map connecting selected nodes to the total cost
+        start_time = time.time()
+
+        # check condition for visualize
+        if self.visualize and hasattr(self.planning_env, "InitializePlot"):
             self.planning_env.InitializePlot(goal_config)
 
-        start_config_id = int(self.planning_env.discrete_env.ConfigurationToNodeId(start_config))
-        goal_config_id = int(self.planning_env.discrete_env.ConfigurationToNodeId(goal_config))
-        begin_config_id = start_config_id
+        # check if open list is not empty
+        while open_list:
 
-        q = []
-        index = 0
+            # select node in open list with min f
+            sel_node = min(f_map, key=lambda k: f_map[k])
+            # check if the goal is reached
+            if sel_node == goal_node_id:
+                break
 
-        no_vertices = reduce(lambda x, y: x * y, self.planning_env.discrete_env.num_cells, 1)
+            # pop the selected node from the open list
+            open_list.remove(sel_node)
+            f_map.pop(sel_node)
 
-        parent = dict()
-        dist_from_start = dict()
+            # update closed list
+            closed_list.append(sel_node)
 
-        heuristic_ = self.planning_env.ComputeHeuristicCost(goal_config_id,start_config_id)
-        heapq.heappush(q, (0, index, start_config_id))
-        index += 1
-        parent[start_config_id] = -1
-        dist_from_start[start_config_id] = 0
-        num_nodes = 0
+            # finding successors for selected node
+            # successors = self.planning_env.GetSuccessors(sel_node)
+            successors, successors_actions = self.planning_env.GetSuccessors(sel_node)
 
-        while len(q) > 0:
-            current = heapq.heappop(q)[-1]
-            dist_till_current = dist_from_start[current]
-            num_nodes += 1
-            successors, successors_actions = self.planning_env.GetSuccessors(current)
+            # iterating for each successor
             for action_idx in range(len(successors_actions)):
                 action = successors_actions[action_idx]
                 #path that was rolled out by the action
                 neighbor_path = successors[action_idx]
-
                 #collision check
                 # Get the current transform
                 T = self.planning_env.robot.GetTransform()
@@ -66,31 +69,51 @@ class AStarPlanner(object):
                     if self.planning_env.checkCollision(start_config, end_config):
                         inCollision = True
                         break
-                 
-                neighbor_id = neighbor_path[-1]
-                
-                if neighbor_id not in parent and not inCollision:
-                    parent[neighbor_id] = list_object(action, current)
-                    # Plotting function
-                    # if self.visualize:
-                    #     self.planning_env.PlotEdge(start_config, end_config)
-                    heuristic_ = self.planning_env.ComputeHeuristicCost(goal_config_id,neighbor_id)
-                    cost_till = self.planning_env.ComputeDistance(current, neighbor_id) + dist_till_current
-                    dist_from_start[neighbor_id] = cost_till
-                    heapq.heappush(q, (heuristic_+cost_till/10.0, index, neighbor_id))
-                    index += 1
-                    if neighbor_id == goal_config_id:
-                        root = neighbor_id
-                        while root != -1:
-                            plan.append(action)
-                            parent_node = parent[root]
-                            root = parent_node
-                            action = parent_node.ActionToGetHere
-                        # if self.visualize and hasattr(self.planning_env, 'InitializePlot'):
-                        #     self.planning_env.PlotFinal(plan[::-1])
-                        return plan[::-1]
-        print "Done nothing"
 
-    def hueristic(self, start_config, end_config):
-        dist = sum([abs(x1 - x2) for x1, x2 in zip(start_config, end_config)])
-        return dist
+                if inCollision:
+                    continue
+
+                successor = neighbor_path[-1]
+
+                # check if successor already visited
+                if successor in closed_list:
+                    continue
+
+                # calculate distance for the successor
+                tentative_g = g_map[sel_node] + self.planning_env.ComputeDistance(sel_node, successor)
+
+                # check if successor not pushed in open list
+                if successor not in open_list:
+                    # push to open list
+                    open_list.append(successor)
+
+                # check if successor in open list
+                elif tentative_g >= g_map[successor]:
+                    continue
+
+                # calculate all the costs for the successor
+                h_cost_succ = self.planning_env.ComputeHeuristicCost(successor, goal_node_id)
+                parent_map[successor] = list_object(sel_node, action)
+                g_map[successor] = tentative_g
+                f_map[successor] = g_map[successor] + h_cost_succ
+
+        # put the nodes from the parent map to the plan if the goal is reached
+        if sel_node == goal_node_id:
+            plan = [action]
+            while sel_node in parent_map.keys():
+                sel_node = parent_map[sel_node]
+                plan.append(self.planning_env.discrete_env.NodeIdToConfiguration(sel_node))
+            plan.reverse()  # reverse the plan
+
+        dist = 0  # variable to find path length
+        for i in range(len(plan) - 1):
+            if self.visualize:
+                self.planning_env.PlotEdge(plan[i], plan[i + 1])
+            node_i = self.planning_env.discrete_env.ConfigurationToNodeId(plan[i])
+            node_i1 = self.planning_env.discrete_env.ConfigurationToNodeId(plan[i + 1])
+            dist += self.planning_env.ComputeDistance(node_i, node_i1)
+
+        print "dist", dist  # calculating path length
+        print "run time", time.time() - start_time  # calculating run time
+        print "number of nodes", len(plan)  # calculating number of nodes
+        return plan  # returning final plan
